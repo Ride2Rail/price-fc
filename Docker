@@ -1,0 +1,5 @@
+FROM python:3.8
+
+COPY price.py /home/price-fc/price.py
+
+ENTRYPOINT ['price.py']
