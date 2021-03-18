@@ -1,1 +1,1 @@
-pip install python-exchangeratesapi
+pip3 install python-exchangeratesapi
