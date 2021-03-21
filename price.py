@@ -6,10 +6,14 @@ import redis
 # from r2r_offer_utils import normalization
 
 app = Flask(__name__)
-cache = redis.Redis(host='redis', port=6379)
 
+#cache = redis.Redis(host='redis', port=6379)
 
 @app.route('/compute', methods=['POST'])
+
+
+
+
 def extract():
     data = request.get_json()
     request_id = data['request_id']
@@ -17,16 +21,32 @@ def extract():
     # ask for the entire list of offer ids
     offer_data = cache.mget('{}:offers'.format(request_id), 0, -1)
 
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
+
 
     response = app.response_class(
         response='{{"request_id": "{}"}}'.format(request_id),
         status=200,
         mimetype='application/json'
     )
+    print("price-fc start")
+
+    # process information about price
+    redis_key_price = request_id + ":" + "price"
+
+    #data_price_test = 3000
+    #cache.set(redis_key_price, data_price_test)
+
+    price = cache.get(redis_key_price)
+
+    if price is None:
+        response.status_code = -1
+        print("Information about price not found in cache")
+    else:
+        print(price)
 
     # normalization.zscore(...)
-
+    print("price-fc end")
     return response
 
 
@@ -42,6 +62,7 @@ if __name__ == '__main__':
 
     cache = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
+    print("spustam")
     app.run(port=FLASK_PORT, debug=True)
 
     exit(0)
