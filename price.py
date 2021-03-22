@@ -1,75 +1,106 @@
 #!/usr/bin/env python3
 
 from flask import Flask, request, abort
+#from r2r_offer_utils import normalization
+from exchangeratesapi import Api
 import json
-#import redis
+import redis
 import rejson
 
-# from r2r_offer_utils import normalization
+TRIAS_INPUT     = 0 # TRIAS
+ROUTERANK_INPUT = 1 # ROUTERANK
+VERBOSE         = 1
+
+
+
+
+def price_to_eur(currency="EUR", price=0):
+    if currency == "EUR":
+        return price
+    if price is None:
+        return None
+
+    currency_api = Api()
+    # IF the currency is not known
+    # TODO: standardize error output among all our TRIAS R2R codes
+    if not currency_api.is_currency_supported(currency):
+        print("Unsupported currency: ", currency)
+        return -1
+    # convert the currency
+    rate = currency_api.get_rate(base=currency, target='EUR')
+    return round(rate * price)
+
+
 
 app = Flask(__name__)
-
-#cache = redis.Redis(host='redis', port=6379)
-
 @app.route('/compute', methods=['POST'])
-
-
-
-
 def extract():
     # import ipdb; ipdb.set_trace()
 
-
-
-
-    data = request.get_json()
+    data       = request.get_json()
     request_id = data['request_id']
-
-    response = app.response_class(
+    response   = app.response_class(
         response='{{"request_id": "{}"}}'.format(request_id),
         status=200,
         mimetype='application/json'
     )
 
+    if VERBOSE== 1:
+        print("price-fc start")
+        print("request_id = " + request_id)
+        print("______________________________")
 
-    print("price-fc start")
+    if TRIAS_INPUT == 1:
+        # ask for the entire list of offer ids
+        offer_data_1 = cache.mget('{}:offers'.format(request_id))
+        # TODO
 
 
-    # ask for the entire list of offer ids
-    print("request_id = " + request_id)
-    print("______________________________")
+    if ROUTERANK_INPUT == 1:
+        # extract required offer data from cache
+        offer_ids            = []
+        offer_currency       = {}
+        offer_bookable_total = {}
+        offer_complete_total = {}
 
+        offer_data_1 = cache.jsonget('{}:offers'.format(request_id))
+        if not(offer_data_1 is None):
+            for offer in offer_data_1:
+                if VERBOSE == 1:
+                    print("offer = " + offer)
+                key_currency       = request_id + ":" + offer + ":" + "currency"
+                key_bookable_total = request_id + ":" + offer + ":" + "bookable_total"
+                key_complete_total = request_id + ":" + offer + ":" + "complete_total"
 
+                currency = cache.jsonget(key_currency)
+                if VERBOSE == 1:
+                    if not(currency is None):
+                        print("currency = " + currency)
+                    else:
+                        print("currency = None")
 
-    # offer_data_1 = cache.mget('{}:offers'.format(request_id))
+                bookable_total = cache.jsonget(key_bookable_total)
+                if VERBOSE == 1:
+                    if not(bookable_total is None):
+                        print("bookable_total = " + str(bookable_total))
+                    else:
+                        print("bookable_total = None")
 
-    # extract offer data
-    offer_data_1 = cache.jsonget('{}:offers'.format(request_id))
-    if not(offer_data_1 is None):
-        for offer in offer_data_1:
-            print("offer = " + offer)
-            key_currency       = request_id + ":" + offer + ":" + "currency"
-            key_bookable_total = request_id + ":" + offer + ":" + "bookable_total"
-            key_complete_total = request_id + ":" + offer + ":" + "complete_total"
-
-            currency = cache.jsonget(key_currency)
-            if not(currency is None):
-                print("currency = " + currency)
-            else:
-                print("currency = None")
-
-            bookable_total = cache.jsonget(key_bookable_total)
-            if not(bookable_total is None):
-                print("bookable_total = " + str(bookable_total))
-            else:
-                print("bookable_total = None")
-
-            complete_total = cache.jsonget(key_complete_total)
-            if not(complete_total is None):
-                print("complete_total = " + str(complete_total))
-            else:
-                print("complete_total = None")
-
+                complete_total = cache.jsonget(key_complete_total)
+                if VERBOSE == 1:
+                    if not(complete_total is None):
+                        print("complete_total = " + str(complete_total))
+                    else:
+                        print("complete_total = None")
+                offer_ids.append(offer)
+                offer_currency[offer]         = currency
+                offer_bookable_total[offer]   = price_to_eur(currency, bookable_total)
+                offer_complete_total[offer]   = price_to_eur(currency, complete_total)
+            if VERBOSE == 1:
+                print("offer_ids            = " + str(offer_ids))
+                print("offer_currency       = " + str(offer_currency))
+                print("offer_bookable_total = " + str(offer_bookable_total))
+                print("offer_complete_total = " + str(offer_complete_total))
 
     # print all keys
     #for key in cache.scan_iter():
@@ -77,7 +108,8 @@ def extract():
 
 
     # normalization.zscore(...)
-    print("price-fc end")
+    if VERBOSE == 1:
+        print("price-fc end")
     return response
 
 
@@ -89,10 +121,11 @@ if __name__ == '__main__':
     REDIS_PORT = 6379
 
     os.environ["FLASK_ENV"] = "development"
+    if TRIAS_INPUT == 1:
+        cache         = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
-    # cache                   = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-
-    cache = rejson.Client(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+    if ROUTERANK_INPUT == 1:
+        cache         = rejson.Client(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
     print("launching FLASK APP")
     app.run(port=FLASK_PORT, debug=True)
