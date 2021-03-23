@@ -13,20 +13,23 @@ VERBOSE         = 0
 cache           = redis.Redis(host='cache', port=6379)
 
 def price_to_eur(currency="EUR", price=0):
-	if currency == "EUR":
-		return price
-	if price is None:
-		return None
+    if currency == "EUR":
+	    return price
+    if price is None:
+	    return None
 
-	currency_api = Api()
-	# IF the currency is not known
-	# TODO: standardize error output among all our TRIAS R2R codes
-	if not currency_api.is_currency_supported(currency):
-		logging.warning("Unsupported currency: ", currency)
-		return None
-	# convert the currency
-	rate = currency_api.get_rate(base=currency, target='EUR')
-	return round(rate * price)
+    try:
+        currency_api = Api()
+        # IF the currency is not known
+        if not currency_api.is_currency_supported(currency):
+            logging.warning("Unsupported currency in price-fc: ", currency)
+            return None
+        # convert the currency
+        rate = currency_api.get_rate(base=currency, target='EUR')
+    except:
+        logging.warning("External service exchangeratesapi failed in price-fc.")
+        return None
+    return round(rate * price)
 
 
 app = Flask(__name__)
