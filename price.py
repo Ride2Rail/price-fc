@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from flask import Flask, request, abort
-#from r2r_offer_utils import normalization
+from r2r_offer_utils import normalization
 from exchangeratesapi import Api
 import json
 import redis
@@ -10,9 +10,6 @@ import rejson
 TRIAS_INPUT     = 0 # TRIAS
 ROUTERANK_INPUT = 1 # ROUTERANK
 VERBOSE         = 1
-
-
-
 
 def price_to_eur(currency="EUR", price=0):
     if currency == "EUR":
@@ -107,7 +104,8 @@ def extract():
     #   print(key)
 
 
-    # normalization.zscore(...)
+    offer_complete_total_z_scores = normalization.zscore(offer_complete_total)
+    print("offer_complete_total_z_scores = " + str(offer_complete_total_z_scores))
     if VERBOSE == 1:
         print("price-fc end")
     return response
