@@ -146,12 +146,12 @@ def extract():
 
 
     # calculate zscores
-    offer_complete_total_z_scores        = normalization.flipped_zscore(offer_complete_total)
+    offer_complete_total_z_scores        = normalization.zscore(offer_complete_total, flipped=True)
     ticket_coverage_z_scores             = normalization.zscore(ticket_coverage)
     can_share_cost_z_scores              = normalization.zscore(can_share_cost)
 
     # calculate minmaxscores
-    #offer_complete_total_minmax_scores   = normalization.flipped_minmaxscore(offer_complete_total)
+    #offer_complete_total_minmax_scores   = normalization.minmaxscore(offer_complete_total, flipped=True)
     #ticket_coverage_minmax_scores        = normalization.minmaxscore(ticket_coverage)
     #can_share_cost_minmax_scores         = normalization.minmaxscore(can_share_cost)
 
