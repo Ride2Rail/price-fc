@@ -48,7 +48,7 @@ VERBOSE = int(str(pathlib.Path(config.get('running', 'verbose'))))
 #############################################################################
 #############################################################################
 #############################################################################
-def price_to_eur(currency="EUR", price=0):
+def price_to_eur(currency="EUR", price=0.0):
     if currency == "EUR":
 	    return price
     if price is None:
@@ -85,14 +85,13 @@ def extract():
         print("______________________________")
         print("price-fc start")
         print("request_id = " + request_id)
-
     #
     # I. extract data required by price-fc from cache
     #
     output_offer_level, output_tripleg_level = cache_operations.extract_data_from_cache(
         cache,
         request_id,
-        ["currency", "bookable_total", "complete_total"],
+        ["bookable_total", "complete_total"],
         ["duration", "can_share_cost"])
 
     if VERBOSE == 1:
@@ -102,12 +101,11 @@ def extract():
     #
     # II. use the external service to convert prices to EUR
     #
-
     for offer in output_offer_level["offer_ids"]:
         # complete_total
-        output_offer_level[offer]["complete_total"] = price_to_eur(output_offer_level[offer]["currency"], output_offer_level[offer]["complete_total"])
+        output_offer_level[offer]["complete_total_EUR"] = price_to_eur(output_offer_level[offer]["complete_total"]["currency"], int(output_offer_level[offer]["complete_total"]["value"]))
         # boobkable_total
-        output_offer_level[offer]["bookable_total"] = price_to_eur(output_offer_level[offer]["currency"], output_offer_level[offer]["bookable_total"])
+        output_offer_level[offer]["bookable_total_EUR"] = price_to_eur(output_offer_level[offer]["bookable_total"]["currency"], int(output_offer_level[offer]["bookable_total"]["value"]))
     #
     # III. compute values assigned to price-fc
     #
@@ -116,10 +114,10 @@ def extract():
     offer_bookable_total = {}
     offer_complete_total = {}
     for offer in output_offer_level["offer_ids"]:
-        offer_bookable_total[offer] = output_offer_level[offer]["bookable_total"]
-        offer_complete_total[offer] = output_offer_level[offer]["complete_total"]
-        if (output_offer_level[offer]["bookable_total"] is not None) and (output_offer_level[offer]["complete_total"] is not None) and (output_offer_level[offer]["complete_total"] > 0):
-            ticket_coverage[offer] = output_offer_level[offer]["bookable_total"]/output_offer_level[offer]["complete_total"]
+        offer_bookable_total[offer] = output_offer_level[offer]["bookable_total_EUR"]
+        offer_complete_total[offer] = output_offer_level[offer]["complete_total_EUR"]
+        if (output_offer_level[offer]["bookable_total_EUR"] is not None) and (output_offer_level[offer]["complete_total_EUR"] is not None) and (output_offer_level[offer]["complete_total_EUR"] > 0):
+            ticket_coverage[offer] = output_offer_level[offer]["bookable_total_EUR"]/output_offer_level[offer]["complete_total_EUR"]
 
     # process can_share_cost (aggregate can_share_cost over triplegs using duration information)
     can_share_cost = {}
