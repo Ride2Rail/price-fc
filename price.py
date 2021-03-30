@@ -68,8 +68,25 @@ def price_to_eur(currency="EUR", price=0.0):
 #############################################################################
 #############################################################################
 #############################################################################
-
 app = Flask(__name__)
+@app.route('/test', methods=['POST'])
+def test():
+    data       = request.get_json()
+    request_id = data['request_id']
+
+    print("Listing cache.")
+    for key in cache.scan_iter():
+       print(key)
+
+    response   = app.response_class(
+        response ='{{"request_id": "{}"}}'.format(request_id),
+        status   =200,
+        mimetype  ='application/json'
+    )
+    return response
+#############################################################################
+#############################################################################
+#############################################################################
 @app.route('/compute', methods=['POST'])
 def extract():
     # import ipdb; ipdb.set_trace()
@@ -169,7 +186,7 @@ def extract():
 if __name__ == '__main__':
     import os
 
-    FLASK_PORT = 5000
+    FLASK_PORT = 5001
     REDIS_HOST = 'localhost'
     REDIS_PORT = 6379
     os.environ["FLASK_ENV"] = "development"
@@ -178,26 +195,3 @@ if __name__ == '__main__':
     print("launching FLASK APP")
     app.run(port=FLASK_PORT, debug=True)
     exit(0)
-
-
-# some valid request=ids in rejson
-# insert #1000 (request_id: #25:17988)
-# insert #2000 (request_id: #24:27682)
-# insert #3000 (request_id: #22:13232)
-# insert #4000 (request_id: #25:26156)
-# insert #5000 (request_id: #24:13701)
-# insert #6000 (request_id: #25:29833)
-# insert #7000 (request_id: #25:11699)
-# insert #8000 (request_id: #24:6890)
-# insert #9000 (request_id: #25:3193)
-# insert #10000 (request_id: #24:10239)
-# insert #11000 (request_id: #23:21757)
-# insert #12000 (request_id: #23:27523)
-# insert #13000 (request_id: #23:6310)
-# insert #14000 (request_id: #22:9449)
-# insert #15000 (request_id: #24:16769)
-# insert #16000 (request_id: #25:4647)
-
-    # print all keys
-    #for key in cache.scan_iter():
-    #   print(key)
