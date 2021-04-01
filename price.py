@@ -16,7 +16,7 @@ import rejson
 import json
 
 
-cache           = redis.Redis(host='cache', port=6379)
+cache           = redis.Redis(host='cache', port=6379, decode_responses=True)
 
 ##### Config
 service_basename = os.path.splitext(os.path.basename(__file__))[0]
@@ -118,11 +118,12 @@ def extract():
     #
     # II. use the external service to convert prices to EUR
     #
-    for offer in output_offer_level["offer_ids"]:
-        # complete_total
-        output_offer_level[offer]["complete_total_EUR"] = price_to_eur(output_offer_level[offer]["complete_total"]["currency"], int(output_offer_level[offer]["complete_total"]["value"]))
-        # boobkable_total
-        output_offer_level[offer]["bookable_total_EUR"] = price_to_eur(output_offer_level[offer]["bookable_total"]["currency"], int(output_offer_level[offer]["bookable_total"]["value"]))
+    if "offer_ids" in output_offer_level.keys():
+        for offer in output_offer_level["offer_ids"]:
+            # complete_total
+            output_offer_level[offer]["complete_total_EUR"] = price_to_eur(output_offer_level[offer]["complete_total"]["currency"], int(output_offer_level[offer]["complete_total"]["value"]))
+            # boobkable_total
+            output_offer_level[offer]["bookable_total_EUR"] = price_to_eur(output_offer_level[offer]["bookable_total"]["currency"], int(output_offer_level[offer]["bookable_total"]["value"]))
     #
     # III. compute values assigned to price-fc
     #
@@ -130,24 +131,27 @@ def extract():
     ticket_coverage      = {}
     offer_bookable_total = {}
     offer_complete_total = {}
-    for offer in output_offer_level["offer_ids"]:
-        offer_bookable_total[offer] = output_offer_level[offer]["bookable_total_EUR"]
-        offer_complete_total[offer] = output_offer_level[offer]["complete_total_EUR"]
-        if (output_offer_level[offer]["bookable_total_EUR"] is not None) and (output_offer_level[offer]["complete_total_EUR"] is not None) and (output_offer_level[offer]["complete_total_EUR"] > 0):
-            ticket_coverage[offer] = output_offer_level[offer]["bookable_total_EUR"]/output_offer_level[offer]["complete_total_EUR"]
+    if "offer_ids" in output_offer_level.keys():
+        for offer in output_offer_level["offer_ids"]:
+            offer_bookable_total[offer] = output_offer_level[offer]["bookable_total_EUR"]
+            offer_complete_total[offer] = output_offer_level[offer]["complete_total_EUR"]
+            if (output_offer_level[offer]["bookable_total_EUR"] is not None) and (output_offer_level[offer]["complete_total_EUR"] is not None) and (output_offer_level[offer]["complete_total_EUR"] > 0):
+                ticket_coverage[offer] = output_offer_level[offer]["bookable_total_EUR"]/output_offer_level[offer]["complete_total_EUR"]
 
     # process can_share_cost (aggregate can_share_cost over triplegs using duration information)
     can_share_cost = {}
-    for offer in output_offer_level["offer_ids"]:
-        triplegs = output_tripleg_level[offer]["triplegs"]
-        temp_duration = {}
-        temp_can_share_cost = {}
-        for tripleg in triplegs:
-            ttemp_duration                = output_tripleg_level[offer][tripleg]["duration"]
-            ttemp_can_share_cost          = output_tripleg_level[offer][tripleg]["can_share_cost"]
-            temp_duration[tripleg]        = isodate.parse_duration(ttemp_duration).seconds
-            temp_can_share_cost[tripleg]  = ttemp_can_share_cost
-        can_share_cost[offer] = normalization.aggregate_a_quantity_over_triplegs(triplegs, temp_duration, temp_can_share_cost)
+    if "offer_ids" in output_offer_level.keys():
+        for offer in output_offer_level["offer_ids"]:
+            if "triplegs" in output_tripleg_level[offer].keys():
+                triplegs = output_tripleg_level[offer]["triplegs"]
+                temp_duration = {}
+                temp_can_share_cost = {}
+                for tripleg in triplegs:
+                    ttemp_duration                = output_tripleg_level[offer][tripleg]["duration"]
+                    ttemp_can_share_cost          = output_tripleg_level[offer][tripleg]["can_share_cost"]
+                    temp_duration[tripleg]        = isodate.parse_duration(ttemp_duration).seconds
+                    temp_can_share_cost[tripleg]  = ttemp_can_share_cost
+                can_share_cost[offer] = normalization.aggregate_a_quantity_over_triplegs(triplegs, temp_duration, temp_can_share_cost)
 
 
     # calculate zscores
