@@ -1,74 +1,77 @@
 #!/usr/bin/env python3
 import os
-import sys
 import pathlib
 import logging
 import configparser as cp
+import isodate
+import redis
 
 from r2r_offer_utils  import normalization
 from r2r_offer_utils  import cache_operations
-from exchangeratesapi import Api
-import isodate
-
-from flask            import Flask, request, abort
-import redis
-import rejson
-import json
+from r2r_offer_utils.logging import setup_logger
+from exchangeratesAPI.exchange_rates import exchange_rates
+from flask            import Flask, request
 
 
-cache           = redis.Redis(host='cache', port=6379, decode_responses=True)
-
-##### Config
-service_basename = os.path.splitext(os.path.basename(__file__))[0]
-config_file = '{name}.conf'.format(name=service_basename)
+service_name = os.path.splitext(os.path.basename(__file__))[0]
+#############################################################################
+#############################################################################
+#############################################################################
+# init Flask
+app          = Flask(service_name)
+#############################################################################
+#############################################################################
+#############################################################################
+# init config
 config = cp.ConfigParser()
-config.read(config_file)
-#####
-
-##### Logging
-# create logger
-logger = logging.getLogger(service_basename)
-logger.setLevel(logging.DEBUG)
-# create formatter
-formatter_fh = logging.Formatter('[%(asctime)s][%(levelname)s]: %(message)s')
-formatter_ch = logging.Formatter('[%(asctime)s][%(levelname)s](%(name)s): %(message)s')
-default_log = pathlib.Path(config.get('logging', 'default_log'))
-try:
-    default_log.parent.mkdir(parents=True, exist_ok=True)
-    default_log.touch(exist_ok=True)
-
-    basefh = logging.FileHandler(default_log, mode='a+')
-except Exception as err:
-    print("WARNING: could not create log file '{log}'"
-          .format(log=default_log), file=sys.stderr)
-    print("WARNING: {err}".format(err=err), file=sys.stderr)
-#####
+config.read(f'{service_name}.conf')
+#############################################################################
+#############################################################################
+#############################################################################
+# init cache
+cache = redis.Redis(host=config.get('cache', 'host'),
+                    port=config.get('cache', 'port'))
+#############################################################################
+#############################################################################
+#############################################################################
+# init logging
+logger, ch = setup_logger()
 
 VERBOSE = int(str(pathlib.Path(config.get('running', 'verbose'))))
+SCORES  = str(pathlib.Path(config.get('running',  'scores')))
+
 #############################################################################
 #############################################################################
 #############################################################################
+# init external service for exchange rates
+currency_api = exchange_rates()
+#############################################################################
+#############################################################################
+#############################################################################
+
 def price_to_eur(currency="EUR", price=0.0):
     if currency == "EUR":
 	    return price
     if price is None:
 	    return None
     try:
-        currency_api = Api()
-        # IF the currency is not known
+        # if the currency is not known
         if not currency_api.is_currency_supported(currency):
-            logging.warning("Unsupported currency in price-fc: ", currency)
+            logging.warning("Unsupported currency in price-fc: {}".format(currency))
             return None
         # convert the currency
-        rate = currency_api.get_rate(base=currency, target='EUR')
+        rate = currency_api.get_rate(currency)
     except:
         logging.warning("External service exchangeratesapi failed in price-fc.")
         return None
-    return round(rate * price)
+    if rate > 0:
+        return round(price/rate)
+    else:
+        return None
 #############################################################################
 #############################################################################
 #############################################################################
-app = Flask(__name__)
+# A method listing out on the screen all keys that are in the cache.
 @app.route('/test', methods=['POST'])
 def test():
     data       = request.get_json()
@@ -87,6 +90,21 @@ def test():
 #############################################################################
 #############################################################################
 #############################################################################
+# A method executing computations assigned to the price-fc feature collector. The price-fc feature collector is
+# responsible for computation of the following determinant factors: "total_price", "ticket_coverage" and
+# "can_share_cost".
+#
+# Computation is composed of four phases:
+# Phase I:   Extraction of data required by price-fc feature collector from the cache. A dedicated procedure defined for
+#            this purpose in the unit "cache_operations.py" is utilized.
+# Phase II:  Use the external service to convert prices to EUR (if needed). A class collecting external data has been
+#            implemented in the module "exchange_rates.py".
+# Phase III: Compute values of weights assigned to price-fc. For aggregation of data at the tripleg level and for
+#            normalization of weights a dedicated procedure implemented in the unit "normalization.py" are utilized.
+#            By default "z-scores" are used to normalize data.
+# Phase IV:  Storing the results produced by price-fc to cache. A dedicated procedure defined for
+# #          this purpose in the unit "cache_operations.py" is utilized.
+
 @app.route('/compute', methods=['POST'])
 def extract():
     # import ipdb; ipdb.set_trace()
@@ -105,11 +123,16 @@ def extract():
     #
     # I. extract data required by price-fc from cache
     #
-    output_offer_level, output_tripleg_level = cache_operations.extract_data_from_cache(
-        cache,
-        request_id,
-        ["bookable_total", "complete_total"],
-        ["duration", "can_share_cost"])
+    try:
+        output_offer_level, output_tripleg_level = cache_operations.read_data_from_cache_wrapper(
+            cache,
+            request_id,
+            ["bookable_total", "complete_total"],
+            ["duration", "can_share_cost"])
+    except redis.exceptions.ConnectionError as exc:
+        logging.debug("Reading from cache by price-fc feature collector failed.")
+        response.status_code = 424
+        return response
 
     if VERBOSE == 1:
         print("output_offer_level   = " + str(output_offer_level))
@@ -154,30 +177,34 @@ def extract():
                 can_share_cost[offer] = normalization.aggregate_a_quantity_over_triplegs(triplegs, temp_duration, temp_can_share_cost)
 
 
-    # calculate zscores
-    offer_complete_total_z_scores        = normalization.zscore(offer_complete_total, flipped=True)
-    ticket_coverage_z_scores             = normalization.zscore(ticket_coverage)
-    can_share_cost_z_scores              = normalization.zscore(can_share_cost)
+    # calculate scores
+    if SCORES == "minmax_scores":
+        # calculate minmax scores
+        offer_complete_total_scores        = normalization.minmaxscore(offer_complete_total, flipped=True)
+        ticket_coverage_scores             = normalization.minmaxscore(ticket_coverage)
+        can_share_cost_scores              = normalization.minmaxscore(can_share_cost)
+    else:
+        # by default z-scores are calculated
+        offer_complete_total_scores        = normalization.zscore(offer_complete_total, flipped=True)
+        ticket_coverage_scores             = normalization.zscore(ticket_coverage)
+        can_share_cost_scores              = normalization.zscore(can_share_cost)
 
-    # calculate minmaxscores
-    #offer_complete_total_minmax_scores   = normalization.minmaxscore(offer_complete_total, flipped=True)
-    #ticket_coverage_minmax_scores        = normalization.minmaxscore(ticket_coverage)
-    #can_share_cost_minmax_scores         = normalization.minmaxscore(can_share_cost)
     if VERBOSE == 1:
-        print("offer_complete_total_z_scores      = " + str(offer_complete_total_z_scores))
-        print("ticket_coverage_zscores            = " + str(ticket_coverage_z_scores ))
-        print("can_share_cost_zscores             = " + str(can_share_cost_z_scores))
-
-        #print("offer_complete_total_minmax_scores = " + str(offer_complete_total_minmax_scores))
-        #print("ticket_coverage_minmax_scores      = " + str(ticket_coverage_minmax_scores))
-        #print("can_share_cost_minmax_scores       = " + str(can_share_cost_minmax_scores))
-
+        print("offer_complete_total_z_scores      = " + str(offer_complete_total_scores))
+        print("ticket_coverage_zscores            = " + str(ticket_coverage_scores ))
+        print("can_share_cost_zscores             = " + str(can_share_cost_scores))
     #
     # IV. store the results produced by price-fc to cache
     #
-    cache_operations.store_simple_data_to_cache(cache, request_id, offer_complete_total_z_scores, "total_price")
-    cache_operations.store_simple_data_to_cache(cache, request_id, ticket_coverage_z_scores, "ticket_coverage")
-    cache_operations.store_simple_data_to_cache(cache, request_id, can_share_cost_z_scores, "can_share_cost")
+    try:
+        cache_operations.store_simple_data_to_cache_wrapper(cache, request_id, offer_complete_total_scores,
+                                                            "total_price")
+        cache_operations.store_simple_data_to_cache_wrapper(cache, request_id, ticket_coverage_scores,
+                                                            "ticket_coverage")
+        cache_operations.store_simple_data_to_cache_wrapper(cache, request_id, can_share_cost_scores,
+                                                            "can_share_cost")
+    except redis.exceptions.ConnectionError as exc:
+        logging.debug("Writing outputs to cache by price-fc feature collector failed.")
 
     if VERBOSE == 1:
         print("price-fc end")
@@ -194,8 +221,6 @@ if __name__ == '__main__':
     REDIS_HOST = 'localhost'
     REDIS_PORT = 6379
     os.environ["FLASK_ENV"] = "development"
-    #cache        = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-    cache         = rejson.Client(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-    print("launching FLASK APP")
-    app.run(port=FLASK_PORT, debug=True)
+    cache        = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+    app.run(port=FLASK_PORT, debug=True, use_reloader=False)
     exit(0)
