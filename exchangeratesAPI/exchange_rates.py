@@ -2,7 +2,8 @@ import datetime
 import requests
 import logging
 
-# class implementing external service providing access to exchange rates published by the European Central Bank
+# class implementing external service providing access to exchange rates published by the European Central Bank on the
+# site http://www.ecb.int/stats/eurofxref/eurofxref-daily.xml
 class exchange_rates:
     # dictionary of exchange rates
     rates = {}
