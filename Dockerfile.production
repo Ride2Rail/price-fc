@@ -1,11 +1,6 @@
 FROM python:3.8
 
-ENV APP_NAME=price.py
-
 WORKDIR /code
-
-ENV FLASK_APP="$APP_NAME"
-ENV FLASK_RUN_HOST=0.0.0.0
 
 RUN pip3 install --no-cache-dir --upgrade pip
 
@@ -14,4 +9,4 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 EXPOSE 5001
 
-CMD ["flask", "run"]
+ENTRYPOINT ["gunicorn","-w","2","--threads","2","-b","0.0.0.0:5001","price-fc:app"]

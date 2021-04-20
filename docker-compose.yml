@@ -1,0 +1,20 @@
+version: "3.8"
+services:
+  price_fc:
+    build: .
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./code:/code
+    environment:
+      FLASK_ENV: development
+    container_name: price_fc
+#    networks:
+#      - offer-enhancer-net
+
+#networks:
+#  offer-enhancer-net:
+#    external:
+#      name: trias-extractor_offer-enhancer-net
+
+
