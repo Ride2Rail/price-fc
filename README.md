@@ -56,6 +56,9 @@ port = 6379
 
 # Usage
 ### Local development (debug on)
+
+The feature collector "price-fc" can be launched from the terminal locally by running the script "price.py":
+
 ```bash
 $ python3 price.py
  * Serving Flask app "price" (lazy loading)
@@ -67,15 +70,29 @@ $ python3 price.py
  * Debugger PIN: 441-842-797
 ```
 
+Moreover, the repository contains also configuration files required to launch the feature collector in Docker from the terminal by the command docker-compose up:
+
+```bash
+docker-compose up
+Starting price_fc ... done
+Attaching to price_fc
+price_fc    |  * Serving Flask app "price.py" (lazy loading)
+price_fc    |  * Environment: development
+price_fc    |  * Debug mode: on
+price_fc    |  * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+price_fc    |  * Restarting with stat
+price_fc    |  * Debugger is active!
+price_fc    |  * Debugger PIN: 250-384-212
+```
+
 ### Example Request
+To make a request (i.e. to calculate values of determinant factors assigned to the "price-fc" feature collector for a given mobility request defined by a request_id) the command curl can be used:
 ```bash
 $ curl --header 'Content-Type: application/json' \
        --request POST  \
        --data '{"request_id": "123x" }' \
          http://localhost:5001/compute
 ```
-
-
 
 ## API for exchange rates:
 Implemented API is reading exchange rates from the service provided by the European Central Bank 
