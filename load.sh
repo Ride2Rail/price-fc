@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start price-fc service
-docker-compose up -d
+# docker-compose up -d
 
 # Check if everything is up and running
 sleep 5
