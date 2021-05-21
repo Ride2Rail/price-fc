@@ -10,7 +10,7 @@
 
 The "price-fc" feature collector is  a module of the **Ride2Rail Offer Categorizer** responsible for the computation of the following determinant factors: ***"total_price"***, ***"ticket_coverage"*** and  ***"can_share_cost"***. 
 
-Computation can be executed from ***["price.py"](https://github.com/Ride2Rail/price-fc/blob/main/price.py)*** by running the procedure ***extract()*** which is binded under the name ***compute*** with URL using ***[FLASK](https://flask.palletsprojects.com)*** (see example request below). Computation is composed of four phases:
+Computation can be executed from ***["price.py"](https://github.com/Ride2Rail/price-fc/blob/main/code/price.py)*** by running the procedure ***extract()*** which is binded under the name ***compute*** with URL using ***[FLASK](https://flask.palletsprojects.com)*** (see example request below). Computation is composed of four phases:
 
 ***Phase I:***   Extraction of data required by price-fc feature collector from the cache. A dedicated procedure defined for
             this purpose from the unit ***"[cache_operations.py](https://github.com/Ride2Rail/r2r-offer-utils/wiki/cache_operations.py)"*** is utilized.
